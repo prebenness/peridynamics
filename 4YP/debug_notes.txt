@@ -1,0 +1,173 @@
+### Modelling the Failure Behaviour of Concrete Structures Using Peridynamics ###
+### May 2019 | King's College | Supervisor: Dr John Orr ###
+### ELECTRONIC LOGBOOK - PREBEN MONTEIRO NESS ###
+
+## 26th of Jan
+16:30:  -- seems to be the case that the add_steel_bar function is not called on the debug geometry.
+16:53: 	-- FULL GEO: currently using 6GB of RAM when calculating bond types, stiffness factors etc. takes 132 sec as well...
+	-- Rewriting function to use fewer intermediate variables
+	-- TODO: Change connect matrix from bool to float
+	-- NOTE: back of the envelope calc: storing a 32 bit float for each bond takes roughly 1.0GB of memory for full geometry...
+17:30:	-- speed testing integration scheme:
+	-- memory usage constant at least, that's good! (6.0GB atm)
+	-- takes ~ 2.5 sec per iteration on full geometry
+	-- look into using OpenMP: https://computing.llnl.gov/tutorials/openMP/ to multithread some things.
+
+## 27th of Jan
+15:11:	-- Trying to push down time for debug run. Bond types, stiff facs, max stretch. Passing everything by reference and [4.133 - 0.975]. About to change connect matrix to boolean.
+
+16:13: 	-- TODO: look into using libigl to get some more MATLABBY funcionality.
+	https://libigl.github.io/matlab-to-eigen.html
+19:32:	-- Reworking calc_stretch function:
+		-- including a reserve statement at the start has slowed integration scheme massively. AV IT TIME: 14.293 - 11.159 on debug geom
+	-- calc bond stretches and node forces most expensive operations
+20:26:	-- changed connect and no fail matrices to bools, somehow uses 9GB of mem now, time taken for stiff facs function is [134.4 sec].
+22:38:	-- need to implement some simple functors for sparse matrices, like sign(), abs(). Struggling to improve calc bond stretch...
+	-- TODO: implement save as .csv and run some experiments to find good setting for build up etc.
+
+## 28th of Jan
+17:29:	-- Beam no longer exploding (this is good), but currently not doing anything (this is bad).
+21:42:	-- Trying to find a good value for the total reaction force. and work out units... 
+	-- -- timestep dt currently on the order of 4.5e-6 (safety factor at 1.5)
+	-- -- trying to find load where deflection is visible after 1000 its
+	-- -- 1e15 too high (!)
+	-- -- Volume of beam is 0.2*0.1*1.0 = 2e-2 m^3
+23:01:	-- for plotting: need to scale up disps
+	-- plot bond elongation somehow 
+
+## 29th of Jan
+15:59:	-- 1e7 as max reaction gives some visible deflection after 10000 iterations and x5000 magnification (debug geom)
+	-- trying 1e8 now for debug geom
+19:53:	-- Have run some experiments and deflections seem good. happy with that
+	-- Trying to implement the OpenMP paralelization to fill sparse matrices
+	-- Issue is that in order to be thread safe, each thread can only operate on a single column. Crashes at the moment.
+	-- Issue also that for .insert() to be thread safe, the sparse matrix must never need to be reallocated memory.
+	-- -- NEED TO BE EXTREMELY CAREFUL WITH AV_BOND_NUM! IF SET TOO LOW FOR A SINGLE COLUMN, THE ENTIRE PROGRAM WILL BREAK! AV_BOND_NUM = N_NUM_NODES/Q
+	-- -- -- DEBUG: WORKS: Q = 1, 10, 15, 17, 19 
+	-- -- -- DEBUG: CRASHES: Q = 20
+20:51:	-- want to use schedule(dynamic) in for loop, as cols of higher index tend to have more non-zeros.
+	-- now for some speed tests:
+	-- -- 1 THREAD, FULL GEOMETRY: vol_corrs: 20.05 sec, 166.6 sec
+	-- -- 8 THREAD, FULL GEOMETRY: vol_corrs: 18.94 sec, 277.6 sec
+	-- -- well that's not good...
+21:12:	-- seems to suffer from "false sharing", so guess I'll read up on that
+
+## 31st of Jan
+20:10:	-- implemented a scheme where on every save, we check for convergence. This is defined as when the average absolute entries in the displacement matrix is less than some tolerance. On debug geometry with max reaction 1e12.
+	-- with tolerance = 1e-4 converged after 1600 timesteps
+	-- with tolerance = 1e-5 converged after 2300 timesteps
+	-- with tolerance = 1e-6 converged after 2700 timesteps
+	-- with tolerance = 1e-7 converged after 4500 timesteps
+	-- with tolerance = 1e-8 DID NOT CONVERGE
+
+## 1st of Feb
+15:04:	-- tidying code
+
+## 4th of Feb
+13:18:	-- implemented binary search for failure load
+	-- -- found "load" at 1.094e+10
+	-- sorted out units
+	-- -- failure load at 437 646 N
+
+20:59:	-- generating beam geometries given by john
+	-- in debug setup for mark's beam: dx = dy = dz = 2.0cm
+	-- in full scale setup: dx = dy = dz = 0.667cm
+	-- delta = M_PI*dx for all
+	-- with uniform discretisation need a way to work out dx, dy and dz
+	-- -- maybe a good place to start from number of nodes wanted?
+
+## 5th of Feb
+16:36:	-- using delta = average(dx,dy,dz)*M_PI
+	-- creating .csv geometry files for the two test beams
+	-- avoiding .norm, as this requires square root computation which is expensive. Instead use squared norm.
+
+19:51:	--  have new geometry files, need to analyse them:
+	-- -- boundary conditions for displacement the same ie fully clamped at one end. Need no further work I think.
+	-- -- ATTEMPTED: force application requires a bit of thinking
+	-- -- -- use switch statement for application
+	-- -- -- need zones of application, hard code these for now
+	-- -- ATTEMPTED: reinforcement requires a bit of thinking
+	-- -- -- use switch statement for tagging routine
+	-- -- -- should be simple enough.
+	-- -- DONE: need to update parsing of file names, keep this format:
+	-- -- -- input: coors_TEST_1A_2970-nodes.csv, neighbours_TEST..., d_xyz_...
+	-- -- -- output: coors_TEST_1A_2970-nodes_#timestep#.csv
+	-- TODO: WORK OUT WHAT TO DO WITH STORING RESULTS
+	-- FIXED: stored dimensions of beam 1B wrong... length should now be 1650mm + 120mm = 1770mm.
+	
+## 6th of Feb:
+16:01:	-- Getting crash where no nodes are loaded. Now applying loads 2 horizons into beam. 
+	-- -- crashes after a few binary runs
+	-- -- trying with 3.0 horizons
+	-- -- when crit ts is set to 0 for conc and steel still gives a failure load of 888668 N...
+17:19:	-- need to set convergence criterion to depend on nodes that are loaded
+	-- issue now is that when loaded very slightly even a zero-strength beam will not displace much. setting convergence criterium to 5e-6
+	-- implement step up scheme for loading
+	-- more important to identify actual failure, need to make sure vibrations doesn't trip up simulation. set coarser tolerance for convergence.
+	-- failure load now just depends on tolerance really
+	-- -- tol = 5e-4 gives 900kN
+	-- -- tol = 5e-5 gives 90kN
+	-- -- tol = 5e-6 gives 9kN
+ 	-- dependence on coarseness: tol = 1e-4
+	-- -- N = 4095 -> fail at 184.139kN
+	-- -- N = 2652 -> fail at 131.420kN
+	-- -- N = 792  -> fail at 164.558kN
+	-- check percentage of bonds broken?
+	-- -- not saving any bonds? 
+	-- -- error in csv parse
+
+# 10th of Feb:
+	-- NOTE: to count remaining bonds DO NOT use SparseMatrix<bool> connect.nonZeros(), because both true and false count as non zeros, instead cast as int and use .sum()
+	-- IDEA: if beam is still moving, but damage percentage does not change, should indicate broken beam falling.
+	-- should plot av_node_disp and percentage broken bonds as function of iteration number for different loads.
+	-- IDEA: if nodes stop moving up, they are not vibrating
+	-- 
+
+# 11th of Feb:
+	-- getting case where bond damage is 95%+ but still "vibrating"
+	-- gonna lower damping and retry
+
+# 12th of Feb:
+	-- troubles with paraview. issue with formatting of csv files? need space after comma?
+	-- -- need space after comma and comma after every number
+
+#13th of Feb:
+	-- 6256 nodes: TEST 1B: UB: 148721N LB: 145414 "FAIL" = 147058N
+
+#18th - 19th of Feb:
+	-- TO DO: FORCE DISPLACEMENT DIAGRAM
+	-- DONE: TO DO: PLOT BONDS IN PARAVIEW
+	-- -- not getting proper curvature
+	-- TO DO: SAVE EACH EXPERIMENT IN SEPARATE DIRECTORY, CACHE FAILURE LOADS ETC
+	-- output\
+		TEST_1A\
+		TEST_1B\
+		...
+			6500-nodes\
+			3450-nodes\
+			...
+				400000N\
+				1000N\
+				...
+					bonds.csv
+					nodes.csv
+					loaded_node_disp.txt
+				failure_bounds.txt
+	-- using library boost to sort out the handling of files and folders
+	-- DEBUG NOTES: need to tell compiler about existence of additional header files
+	   need to tell linker about libraries
+	-- using boost filesystem library
+	
+#20th of Feb
+	-- noticed that some health and strain values are out of bounds
+	-- -- either don't allow negative values, or don't plot bonds that break
+	-- also store material flag for nodes
+	-- DEFINE FAILURE
+	-- run a bunch of loads for 20k+ iterations
+
+#12th of March
+	-- need to save things for plotting. Save bond damage + av node disp as func of time
+	--
+ 
+#13th of March
+	-- bug where geometry at time 0 is saved as previous beam tested
