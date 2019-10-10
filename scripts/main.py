@@ -12,7 +12,7 @@ parser.add_argument('--v', action='store_true', required=False)
 args = parser.parse_args()
 
 TEST_TAG = os.path.split(args.in_coor_file)[-1].split('_')[2]
-assert( TEST_TAG in models )
+assert(TEST_TAG in models)
 
 if args.v:
     verbose = True
@@ -43,6 +43,21 @@ def main():
     sim = Simulation(geom=geom, settings=peri_config, verbose=verbose)
     sim.run_time_integration(bulk_mat=conc, rebar_mat=steel, args=args)
     
+    # Binary search for failure
+    bi_conv = False # True is failure
+    tol = 0.01 # Tolerance
+    hi = 5.0
+    lo = -5.0
+    
+    
+    while !biconv:
+        scale = (hi + lo )/2.0  # set mean as test value for force
+        load_tag = 'L' + str(peri_config.MAX_REAC * pow(10, scale)) + 'N' # store info about loading
+        
+        # Store results in new directory
+        tmp_path = args.out_dir + '/' + load_tag
+        
+        csv.save_results(out_path, "0", geom, load_tag)
     print('done')
     
 if __name__ == '__main__':
