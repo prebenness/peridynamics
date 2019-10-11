@@ -9,8 +9,10 @@ Created on Tue Sep 17 17:37:55 2019
 import numpy as np
 from datetime import datetime, timedelta
 from scipy import sparse
+from csv_parse import csvParse
 
 class Simulation:
+    
     def __init__(self, geom, settings, verbose=False):
         self.v = verbose
         self.geom = geom
@@ -37,11 +39,12 @@ class Simulation:
         self.geom.bond_stretches.prune()
         self.geom.fail_stretches.prune()
         
-    def run_time_integration(self, bulk_mat, rebar_mat, args, verbose=False):
+    def run_time_integration(self, bulk_mat, rebar_mat, args, load_tag, n_num_nodes, verbose=False):
         old = False
         tol = 1e-5
         prev_perc_damage = 0.0
         
+        save_every = 50
         max_its = self.settings.nt
         
         # Stretches -> fails -> forces -> accs -> vels -> disps -> stretches
@@ -80,6 +83,11 @@ class Simulation:
             self.t_rec = t
             self.print_times()
             self.prune_mats()
+            
+            if it % 50 ==0:
+                csvParse.save_results(args.out_dir, it, self.geom, load_tag, n_num_nodes)
+                print('SAVING NOW')
+            
             
             
     def calc_bond_stretches(self):

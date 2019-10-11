@@ -16,46 +16,42 @@ from geom_utils import inv_materials, materials, mat_cons
 from phys_props import Geometry
 
 class csvParse:
-    def __init__(self, geom, settings, verbose=False):
+    def __init__(self, geom, verbose=False):
         self.v = verbose
         self.geom = geom
-        self.settings = settings
-# =============================================================================
-#         self.func_order = [
-#             'construct_H',
-#             'calc_fails',
-#             'calc_node_forces',
-#             'calc_accs',
-#             'calc_vels',
-#             'calc_disps',
-#             'calc_bond_stretches',
-#             'total',
-#             ]
-#         self.t_rec = [timedelta(microseconds=0)]*len(self.func_order)
-#         self.construct_H(init=True)
-# ============================================================================= 
-    def save_results(out_dir, time_tag, geom, load_tag, test_tag, n_num_nodes):
+    def save_results(out_dir, time_tag, geom, load_tag, n_num_nodes):
         """ Input: root output directory
-                    test_tag = TEST_1A_LOAD400000 for example
+                    load_tag = TEST_1A_LOAD400000 for example
                     time_tag = "150"
                     
             Output: None
         """
         # Initiate output file path
-        out_path = out_dir + "/" + test_tag + "/" + str(n_num_nodes) + "-nodes/" + load_tag + "/" + "coors.csv" + time_tag
+        out_path = out_dir + "/" + load_tag + "/" + str(n_num_nodes) + "-nodes/"
+        
+        
+        # Attempt to create the directory
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        
+        out_path = out_path + str(time_tag) + "coors.csv" # set out_path to file name
         
         # Attempt to write coordinates to output file
-        with open('out_path', 'w') as myfile:
+        with open(out_path, 'w', newline = '') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
             wr.writerow(['X','Y','Z'])
-            for i in range(len(geom.coors[0])):
-                X = geom.coors[0][i]
-                Y = geom.coors[1][i]
-                Z = geom.coors[2][i]
+            
+            print('LENGTH OF LIST IS {} columns, {} rows'.format(len(geom.coors[0]), len(geom.coors)))
+            for i in range(len(geom.coors)):
+                X = geom.coors[i][0]
+                Y = geom.coors[i][1]
+                Z = geom.coors[i][2]
+                mylist = [X, Y, Z]
                 
-                wr.writerow([X, Y, Z])
+                wr.writerow(mylist)
         # Store a "point" for each bond and associated strain value
-        out_path = out_dir + "/" + test_tag + "/" + str(n_num_nodes) + "-nodes/" + load_tag + '/' + "bonds.csv" + time_tag
+        
+        #out_path = out_dir + "/" + test_tag + "/" + str(n_num_nodes) + "-nodes/" + "bonds.csv" + time_tag
                 
                 
                 
