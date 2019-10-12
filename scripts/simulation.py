@@ -43,8 +43,6 @@ class Simulation:
         old = False
         tol = 1e-5
         prev_perc_damage = 0.0
-        
-        save_every = 50
         max_its = self.settings.nt
         
         # Stretches -> fails -> forces -> accs -> vels -> disps -> stretches
@@ -76,8 +74,10 @@ class Simulation:
                 
             it += 1
             rep = '\nCompleted iteration {}    {}\n{} out of {} bonds remaining ({:4.2f}%)'.format(it, version, int(self.geom.conn.nnz/2),\
-                                       self.geom.num_bonds, 100*self.geom.conn.nnz/self.geom.num_bonds)
+                                       self.geom.num_bonds/2, 100*self.geom.conn.nnz/self.geom.num_bonds)
             t[7] = datetime.now() - gst
+
+            
             print(rep)
 #            self.t_rec = [ tt/(it+1) + tc for tt, tc in zip(t, self.t_rec) ]
             self.t_rec = t
@@ -85,10 +85,8 @@ class Simulation:
             self.prune_mats()
             
             if it % 50 ==0:
+                print('SAVING RESULTS')
                 csvParse.save_results(args.out_dir, it, self.geom, load_tag, n_num_nodes)
-                print('SAVING NOW')
-            
-            
             
     def calc_bond_stretches(self):
         st = datetime.now()

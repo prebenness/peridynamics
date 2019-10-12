@@ -52,7 +52,7 @@ def main():
     hi = 5.0
     lo = -5.0
     
-    
+    # Failure checks
     while not bi_conv:
         #scale = (hi + lo )/2.0  # set mean as test value for force
         #load_tag = 'L' + str(peri_config.MAX_REAC * pow(10, scale)) + 'N' # store info about loading
