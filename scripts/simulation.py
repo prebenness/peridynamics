@@ -74,7 +74,7 @@ class Simulation:
                 
             it += 1
             rep = '\nCompleted iteration {}    {}\n{} out of {} bonds remaining ({:4.2f}%)'.format(it, version, int(self.geom.conn.nnz/2),\
-                                       self.geom.num_bonds/2, 100*self.geom.conn.nnz/self.geom.num_bonds)
+                                       np.floor(self.geom.num_bonds/2), 100*self.geom.conn.nnz/self.geom.num_bonds)
             t[7] = datetime.now() - gst
 
             

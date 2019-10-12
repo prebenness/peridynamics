@@ -53,10 +53,6 @@ class csvParse:
         # Store a "point" for each bond and associated strain and health value
         out_path = out_dir + "bonds" + str(time_tag) + ".csv" # set out_path to file name
         
-        # only store bonds that are not broken?
-        # for the geom.connect matrix
-        
-        
         with open(out_path, 'w', newline = '') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
             wr.writerow(['X','Y','Z', 'strain', 'health'])
