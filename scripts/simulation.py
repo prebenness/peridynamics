@@ -95,36 +95,37 @@ class Simulation:
                 t[6] = self.calc_bond_stretches()
                 
             it += 1
-            rep = '\nCompleted iteration {}    {}'.format(it, version)
+            #rep = '\nCompleted iteration {}    {}'.format(it, version)
             t[7] = datetime.now() - gst
 
             
-            print(rep)
+            #print(rep)
 #            self.t_rec = [ tt/(it+1) + tc for tt, tc in zip(t, self.t_rec) ]
             self.t_rec = t
-            self.print_times()
+            #self.print_times()
             self.prune_mats()
             
             # Save results and check for convergence every save_every steps
             if it % save_every == 0:
-                
+                rep = '\nCompleted iteration {}    {}'.format(it, version)
                 # Define local variables
                 bonds_remaining = int(self.geom.conn.nnz/2) 
-                total_bonds = np.floor(self.geom.num_bonds/2)
+                total_bonds = int(np.floor(self.geom.num_bonds/2))
                 perc_damage = 1.0 - bonds_remaining/total_bonds
                 change_damage = perc_damage - prev_perc_damage
                 prev_perc_damage =  perc_damage
                 # Calculate the average node displacement
                 av_node_zdisplacement = self.calc_loaded_disp()
+                av_abs_node_displacement = self.calc_abs_disp()
                 
-                
+                print(rep)
                 # Save results
                 print('SAVING RESULTS \n{} out of {} bonds remaining ({:4.2f}%)'.format(bonds_remaining, total_bonds, 100.0*(1.0-perc_damage)))
                 csvParse.save_results(args.out_dir, it, self.geom, load_tag, n_num_nodes)
                 
                 
                 # Check if has converged or spent iteration budget
-                print('AVERAGE NODE DISPLACEMENT:{}'.format(av_node_zdisplacement)) # Average displacement in the z direction
+                print('AVERAGE NODE DISPLACEMENT: {} \nAVERAGE ABSOLUTE NODE DISPLACEMENT: {}'.format(av_node_zdisplacement, av_abs_node_displacement)) # Average displacement in the z direction
                 
                 if abs(change_damage) < tol:
                     stable_steps += save_every
@@ -134,7 +135,7 @@ class Simulation:
                 if stable_steps >= 2* self.settings.build_up:
                     if av_node_zdisplacement * np.sum(self.geom.body_forces, axis=0)[2] < 0: # average node displacement in z direction * sum of body forces in z direction
                         falling = 0
-                        if self.calc_abs_disp() <= tol:
+                        if av_abs_node_displacement <= tol:
                             converged = True
                             print('SIMULATION CONVERGED IN {} TIMESTEPS!'.format(it))
                             print('AVERAGE NODE DISPLACEMENT: {}'.format(av_node_zdisplacement))
@@ -142,6 +143,7 @@ class Simulation:
                             break
                     else:
                         falling += save_every
+                        
                     if falling >= 2* self.settings.build_up:
                         converged = False
                         print('BEAM BROKE, FALLING')
@@ -254,7 +256,7 @@ class Simulation:
             norms = H_x.power(2) + H_y.power(2) + H_z.power(2)
             self.norms = norms.sqrt()
         
-        print('Stored H {}'.format(datetime.now()-st))
+        #print('Stored H {}'.format(datetime.now()-st))
         return st - datetime.now()
         
     def construct_H_old(self, init):
@@ -446,6 +448,11 @@ class Simulation:
         # Disp of all nodes since start
         tot_disps = self.geom.coors - self.geom.coors_0
         x_disp, y_disp, z_disp= zip(*tot_disps)
+        
+        # Convert to np array
+        x_disp = np.asarray(x_disp)
+        y_disp = np.asarray(y_disp)
+        z_disp = np.asarray(z_disp)
         
         # Pythag abs distance of each of the N nodes, gives (N * 1) vector of abs disp
         abs_disp = pow(x_disp, 2) + pow(y_disp, 2) + pow(z_disp, 2)
