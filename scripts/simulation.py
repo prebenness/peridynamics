@@ -355,6 +355,19 @@ class Simulation:
         self.geom.disps = self.geom.disps + self.geom.vels * self.settings.dt
         return datetime.now() - st
     
+    def calc_loaded_disp(self):
+        
+        # Disp of all nodes since start
+        tot_disps = self.geom.coors - self.geom.coors_0
+        x_disp, y_disp, z_disp = zip(*tot_disps)
+        
+        # Calculate average displacement of the nodes in each direction
+        x_av_disp = np.sum(x_disp)/self.geom.num_loaded
+        y_av_disp = np.sum(y_disp)/self.geom.num_loaded
+        z_av_disp = np.sum(z_disp)/self.geom.num_loaded
+        
+        return z_av_disp # Only returns Z disp at the moment
+    
     def print_times(self):
         tot = sum(tt.microseconds for tt in self.t_rec)
         tot = self.t_rec[-1].microseconds

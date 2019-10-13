@@ -1,4 +1,5 @@
 import argparse, os
+import numpy as np
 from phys_props import Geometry, Material, SimulationSettings
 from simulation import Simulation
 from csv_parse import csvParse
@@ -54,13 +55,35 @@ def main():
     
     # Failure checks
     while not bi_conv:
-        #scale = (hi + lo )/2.0  # set mean as test value for force
-        #load_tag = 'L' + str(peri_config.MAX_REAC * pow(10, scale)) + 'N' # store info about loading
+        SCALE = (hi + lo )/2.0  # set mean as test value for force
+        LOAD_TAG = 'L' + str(peri_config.MAX_REAC * pow(10, SCALE)) + 'N' # store info about loading
         
         # Store results in new directory
         tmp_path = args.out_dir
         csv.save_results(tmp_path, "0", geom, TEST_TAG, N) #make sure simulation saved for t=0
         bi_conv = True
+        
+        
+        # Check mean value
+        geom.coors = geom.coors_0 # Set coordinates to initial value
+        np.resize(geom.vels,(3, N)) # Set velocities to 0
+        geom.vels.fill(0)
+        
+        geom.set_body_forces(settings=peri_config, test=TEST_TAG, scale=SCALE) # Set new body forces
+        safe = sim.run_time_integration(bulk_mat=conc, rebar_mat=steel, args=args, load_tag=LOAD_TAG, n_num_nodes=N)
+        num_tested += 1
+        
+        # If beam has safely converged, then increase lower bound failure load
+        if safe:
+            lo = SCALE
+            loaded_node_disp = str(sim.calc_loaded_disp())
+        else: # Beam has failed, we have upper bound failure load
+            hi = SCALE
+            loaded_node_disp = "BEAM FAILED"
+            
+            
+            
+        
     print('done')
     
 if __name__ == '__main__':
