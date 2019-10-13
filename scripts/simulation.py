@@ -40,13 +40,35 @@ class Simulation:
         self.geom.fail_stretches.prune()
         
     def run_time_integration(self, bulk_mat, rebar_mat, args, load_tag, n_num_nodes, verbose=False):
-        old = False
-        tol = 1e-5
-        prev_perc_damage = 0.0
-        max_its = self.settings.nt
+# =============================================================================
+#         TODO:
+#         DONE Use stretches to update fails
+#         DONE Use stretch to calc forces on all nodes
+#         ??? if in build-up phase, scale forces accordingly:
+#         DONE from forces get accs, vels, disps for all nodes
+#         DONE? use disps and old positions to get new positions
+#         save results and check for convergence every N steps
+#             check if has converged or spent iteration budget
+#             average absolute displacement over loaded nodes
+#         incriment iteration counter
+# =============================================================================
         
+        # Define local variables
+        
+        it = 0 # No. of iterations
+        save_every = 50 # Save and check for convergence every 50 timesteps
+        
+        old = False # Old or new implementation
+        
+        tol = 1e-5 # Tolerance
+        perc_damage = 0.0 # percent damage
+        prev_perc_damage = 0.0 # previous iteration percent damage
+        max_its = self.settings.nt # max no. of iterations before max iteration budget is reached
+        stable_steps = 0 # Total number of stable steps so far
+        falling = 0 #time steps since ???
+        converged = False #bool has the solver converged?
+    
         # Stretches -> fails -> forces -> accs -> vels -> disps -> stretches
-        it = 0
         t = list(range(len(self.func_order)))
         while True:
             gst = datetime.now()
@@ -73,8 +95,7 @@ class Simulation:
                 t[6] = self.calc_bond_stretches()
                 
             it += 1
-            rep = '\nCompleted iteration {}    {}\n{} out of {} bonds remaining ({:4.2f}%)'.format(it, version, int(self.geom.conn.nnz/2),\
-                                       np.floor(self.geom.num_bonds/2), 100*self.geom.conn.nnz/self.geom.num_bonds)
+            rep = '\nCompleted iteration {}    {}'.format(it, version)
             t[7] = datetime.now() - gst
 
             
@@ -84,9 +105,59 @@ class Simulation:
             self.print_times()
             self.prune_mats()
             
-            if it % 50 ==0:
-                print('SAVING RESULTS')
+            # Save results and check for convergence every save_every steps
+            if it % save_every == 0:
+                
+                # Define local variables
+                bonds_remaining = int(self.geom.conn.nnz/2) 
+                total_bonds = np.floor(self.geom.num_bonds/2)
+                perc_damage = 1.0 - bonds_remaining/total_bonds
+                change_damage = perc_damage - prev_perc_damage
+                prev_perc_damage =  perc_damage
+                # Calculate the average node displacement
+                av_node_zdisplacement = self.calc_loaded_disp()
+                
+                
+                # Save results
+                print('SAVING RESULTS \n{} out of {} bonds remaining ({:4.2f}%)'.format(bonds_remaining, total_bonds, 100.0*(1.0-perc_damage)))
                 csvParse.save_results(args.out_dir, it, self.geom, load_tag, n_num_nodes)
+                
+                
+                # Check if has converged or spent iteration budget
+                print('AVERAGE NODE DISPLACEMENT:{}'.format(av_node_zdisplacement)) # Average displacement in the z direction
+                
+                if abs(change_damage) < tol:
+                    stable_steps += save_every
+                else:
+                    stable_steps = 0
+                
+                if stable_steps >= 2* self.settings.build_up:
+                    if av_node_zdisplacement * np.sum(self.geom.body_forces, axis=0)[2] < 0: # average node displacement in z direction * sum of body forces in z direction
+                        falling = 0
+                        if self.calc_abs_disp() <= tol:
+                            converged = True
+                            print('SIMULATION CONVERGED IN {} TIMESTEPS!'.format(it))
+                            print('AVERAGE NODE DISPLACEMENT: {}'.format(av_node_zdisplacement))
+                            print('BOND DAMAGE: {4.2f}%'.format(perc_damage*100.0))
+                            break
+                    else:
+                        falling += save_every
+                    if falling >= 2* self.settings.build_up:
+                        converged = False
+                        print('BEAM BROKE, FALLING')
+                        print('BOND DAMAGE: {4.2f}%'.format(perc_damage*100.0))
+                        # break
+                            
+                
+                # If over budget and not converged beam has failed
+                if it >= max_its:
+                    converged = False
+                    print('SIMULARTION DID NOT CONVERGE, REACHED MAX ITERATION BUDGET OF {} ITERATIONS'.format(max_its))
+                    print('BOND DAMAGE: {4.2f}%'.format(perc_damage*100.0))
+                    break
+                
+        return converged
+                
             
     def calc_bond_stretches(self):
         st = datetime.now()
@@ -356,17 +427,34 @@ class Simulation:
         return datetime.now() - st
     
     def calc_loaded_disp(self):
+        #TODO check this function behaves correctly and is what Preben wanted
         
         # Disp of all nodes since start
         tot_disps = self.geom.coors - self.geom.coors_0
         x_disp, y_disp, z_disp = zip(*tot_disps)
         
         # Calculate average displacement of the nodes in each direction
-        x_av_disp = np.sum(x_disp)/self.geom.num_loaded
-        y_av_disp = np.sum(y_disp)/self.geom.num_loaded
+        #x_av_disp = np.sum(x_disp)/self.geom.num_loaded
+        #y_av_disp = np.sum(y_disp)/self.geom.num_loaded
         z_av_disp = np.sum(z_disp)/self.geom.num_loaded
         
         return z_av_disp # Only returns Z disp at the moment
+    
+    def calc_abs_disp(self):
+        #TODO check this function behaves correctly and is what Preben wanted
+        
+        # Disp of all nodes since start
+        tot_disps = self.geom.coors - self.geom.coors_0
+        x_disp, y_disp, z_disp= zip(*tot_disps)
+        
+        # Pythag abs distance of each of the N nodes, gives (N * 1) vector of abs disp
+        abs_disp = pow(x_disp, 2) + pow(y_disp, 2) + pow(z_disp, 2)
+        abs_disp = pow(abs_disp, 0.5)
+        
+        # Return scalar value for the average absolute displacement
+        av_abs_disp = np.sum(abs_disp)/self.geom.num_loaded
+        
+        return av_abs_disp
     
     def print_times(self):
         tot = sum(tt.microseconds for tt in self.t_rec)
@@ -378,7 +466,3 @@ class Simulation:
         rep += '\n'
         
         print(rep)
-        
-        
-        
-        

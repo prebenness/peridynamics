@@ -52,6 +52,7 @@ def main():
     tol = 0.01 # Tolerance
     hi = 5.0
     lo = -5.0
+    num_tested = 0 # 
     
     # Failure checks
     while not bi_conv:
@@ -76,14 +77,31 @@ def main():
         # If beam has safely converged, then increase lower bound failure load
         if safe:
             lo = SCALE
-            loaded_node_disp = str(sim.calc_loaded_disp())
+            #loaded_node_disp = str(sim.calc_loaded_disp()) # TODO: check what this is for
         else: # Beam has failed, we have upper bound failure load
             hi = SCALE
-            loaded_node_disp = "BEAM FAILED"
-            
-            
-            
+            #loaded_node_disp = "BEAM FAILED" # TODO: check what this is for
         
+        # TODO: Store values of loaded node displacements
+        
+        # Display progress and check convergence
+        if hi - lo <= tol:
+            # TODO: check what this tolerance value means, how it compares to other tolerance in simulation run time
+            # TODO: check that c++ geom.nodes_loaded == py geom.num_loaded
+            bi_conv = True
+            print( "\nNUMBER TESTED: {}".format(num_tested))
+            print("BOUNDS: \nUB: {} \nLB: {}".format(peri_config.MAX_REAC * pow(10, hi), peri_config.MAX_REAC * pow(10, lo)))
+        
+        scale = (hi + lo)/ 2.0 # Save final value
+        fail_load = peri_config.MAX_REAC * pow(10, scale)
+        sum_body_forces = np.sum(geom.body_forces, axis=0)[2] * geom.num_loaded * peri_config.volume / geom.num_loaded
+        
+        print(' scale = (hi - lo) /2 : {}'.format(scale))
+        print(' Failure load form summed body forces: {}N'.format(sum_body_forces))
+        print(' Failure load form applied loading: {}N'.format(fail_load))
+        
+        
+        #TODO: Store results on failure loads and bounds
     print('done')
     
 if __name__ == '__main__':
