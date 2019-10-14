@@ -332,3 +332,4 @@ class SimulationSettings:
     def calc_dt(self, bulk_mat):
         dx = self.delta / PI
         self.dt = ( 0.8 * math.pow( 2.0 * bulk_mat.dens * dx / ( PI * pow(self.delta, 2.0) * dx * bulk_mat.c_bond), 0.5)) / self.saf_fac
+
